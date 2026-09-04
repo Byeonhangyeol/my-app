@@ -1,0 +1,263 @@
+/* 타이포그래피 시스템 — 역할별로 두 개의 글씨체만 쓴다.
+   히어로체(Hi Melody): "한달만"·"끝!"처럼 아주 크게 한 번만 쓰는 곳 — 얇고 귀여운 손글씨.
+   본문·버튼체(Gowun Dodum): 손글씨 느낌은 남아 있지만 훨씬 차분하고 또렷해서,
+   질문 제목·설명문·버튼 모두에 쓸 수 있다. 화면마다 다른 폰트를 쓰지 않도록
+   이 두 가지만 앱 전체가 재사용한다. */
+@import url("https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Hi+Melody&display=swap");
+@import "tailwindcss";
+
+/* ============================================================
+   디자인 시스템 토큰
+   ------------------------------------------------------------
+   기존 색 아이덴티티(핑크/연보라/살구/연하늘, 갈색 계열 텍스트)는 그대로 유지하되,
+   배경은 핑크 톤 크림에서 화이트/아이보리/아주 연한 warm gray로 옮기고, 카드·버튼·입력창은
+   "Soft 3D / Neumorphism" 방식(밝은 하이라이트 + 부드러운 그림자, 눌리면 안쪽으로 들어가는
+   느낌)으로 입체감을 준다. 모든 화면이 shadow·radius 토큰(아래 :root 참고)을
+   통일해서 쓰고, 그림자 값을 화면마다 새로 짓지 않는다 (SoftCard/SoftButton 등
+   src/components/ui/ 공통 컴포넌트가 이 토큰만 참조한다).
+   ============================================================ */
+:root {
+  /* 포인트 컬러(그대로 유지) — 채도 낮은 파스텔 핑크/연보라/살구/연하늘. */
+  --pink: #ff8fab;
+  --pink-strong: #fb6d92;
+  --soft-pink: #ffd6e0;
+  --lavender: #c9c2f5;
+  --apricot: #ffd3b0;
+  --sky: #bee3f8;
+
+  /* 손그림(doodle) 아이콘 전용 팔레트 — 채도를 낮춘 파스텔 + 무광 브라운 선.
+     선택지 아이콘(DoodleIcon)·제목 주변 장식(DoodleDecoration)이 이 값만 쓴다. */
+  --doodle-outline: #6f5b54;
+  --doodle-outline-soft: #725e56;
+  --doodle-pink: #f5b8bd;
+  --doodle-pink-soft: #f7c9cd;
+  --doodle-yellow: #f4d58a;
+  --doodle-yellow-soft: #f7dfa5;
+  --doodle-blue: #b9d9ed;
+  --doodle-blue-soft: #d4e9f5;
+  --doodle-lavender: #d8c9e8;
+  --doodle-green: #c6dfcf;
+  --doodle-cream: #fff8f0;
+
+  /* 배경 — 순백색만 계속 쓰지 않도록 warm ivory/gray 3단계를 섞어 쓴다. */
+  --surface-bg-1: #f4f3f1;
+  --surface-bg-2: #f7f6f4;
+  --surface-bg-3: #faf9f7;
+  --surface-white: #fffdfc;
+
+  /* 글자 색 위계 — 진한 초코브라운(제목) → 중간 브라운(본문) → 연한 브라운그레이(보조문구). */
+  --text-brown: #5b4642;
+  --text-body-color: #7a6863;
+  --text-gray: #a69c99;
+
+  /* 입체감(soft 3D) — 밝은 하이라이트 + 따뜻한 톤의 그림자. 회색 대신 살짝 갈색이 도는
+     그림자를 써서 파스텔 배경과 부딪히지 않는다. 눌린(inset) 영역은 반대 방향으로. */
+  --shadow-hi: rgba(255, 255, 255, 0.85);
+  --shadow-hi-strong: rgba(255, 255, 255, 0.95);
+  --shadow-lo: rgba(120, 92, 82, 0.16);
+  --shadow-lo-soft: rgba(120, 92, 82, 0.1);
+
+  --shadow-sm: -4px -4px 10px var(--shadow-hi), 4px 5px 12px var(--shadow-lo-soft);
+  --shadow-md: -6px -6px 16px var(--shadow-hi), 6px 8px 20px var(--shadow-lo);
+  --shadow-lg: -8px -8px 20px var(--shadow-hi-strong), 8px 12px 28px var(--shadow-lo);
+  --shadow-xl: -10px -10px 26px var(--shadow-hi-strong), 10px 16px 36px rgba(120, 92, 82, 0.2);
+  --shadow-inset: inset 3px 3px 7px var(--shadow-lo-soft), inset -3px -3px 7px var(--shadow-hi);
+  --shadow-inset-sm: inset 2px 2px 5px var(--shadow-lo-soft), inset -2px -2px 5px var(--shadow-hi);
+  /* 선택된(accent) 요소용 — 핑크 톤이 도는 그림자 + 은은한 글로우 */
+  --shadow-accent: -4px -4px 10px rgba(255, 214, 224, 0.5), 6px 8px 20px rgba(255, 111, 146, 0.35);
+
+  --radius-sm: 0.875rem;
+  --radius-md: 1.25rem;
+  --radius-lg: 1.75rem;
+  --radius-xl: 2.25rem;
+
+  --background: var(--surface-bg-1);
+  --foreground: var(--text-brown);
+
+  /* 자간·줄간격 — 손글씨 느낌은 살리되 너무 붙거나 답답하지 않게. */
+  --tracking-soft: 0.01em;
+  --leading-title: 1.35;
+  --leading-body: 1.7;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* 제목체 — 질문 제목. 본문·버튼과 같은 Gowun Dodum 계열을 쓰되 굵기·크기로만 구분한다.
+     "한달만"/"끝!" 로고만 더 존재감 있는 Jua(font-hero)를 그대로 쓴다. */
+  --font-title: "Gowun Dodum", var(--font-geist-sans), sans-serif;
+  --font-hero: "Hi Melody", var(--font-geist-sans), sans-serif;
+  /* 본문·버튼체 — 설명문, 힌트, 버튼·선택 카드 라벨까지 전부 이 한 글씨체를 쓴다. */
+  --font-body: "Gowun Dodum", var(--font-geist-sans), sans-serif;
+  --font-button: "Gowun Dodum", var(--font-geist-sans), sans-serif;
+
+  --color-pink: var(--pink);
+  --color-soft-pink: var(--soft-pink);
+  --color-lavender: var(--lavender);
+  --color-apricot: var(--apricot);
+  --color-sky: var(--sky);
+  --color-text-brown: var(--text-brown);
+  --color-text-body: var(--text-body-color);
+  --color-text-gray: var(--text-gray);
+
+  /* 글자 크기 위계 (6단계) — clamp()로 화면 폭에 따라 부드럽게 커지고,
+     sm:/md: 단계별로 뚝뚝 끊기지 않는다.
+     1. 메인 타이틀(hero) 2. 페이지 제목(title) 3. 섹션·카드 제목(section)
+     4. 본문(body) 5. 보조문구·힌트(hint) 6. 버튼(button) */
+  --text-hero: clamp(4.5rem, 9vw + 2.5rem, 9rem);
+  --text-title: clamp(1.375rem, 2vw + 1rem, 1.875rem);
+  --text-section: clamp(1rem, 0.6vw + 0.85rem, 1.125rem);
+  --text-body: clamp(0.9rem, 0.4vw + 0.8rem, 1.0625rem);
+  --text-hint: clamp(0.8rem, 0.3vw + 0.72rem, 0.9375rem);
+  --text-button: clamp(0.9rem, 0.4vw + 0.8rem, 1.0625rem);
+}
+
+body {
+  background: linear-gradient(160deg, var(--surface-bg-3) 0%, var(--surface-bg-2) 45%, var(--surface-bg-1) 100%);
+  background-attachment: fixed;
+  color: var(--foreground);
+  font-family: var(--font-body);
+  letter-spacing: var(--tracking-soft);
+}
+
+/* 화면이 나타날 때 살짝 떠오르듯 부드럽게 페이드인. */
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.page-enter {
+  animation: page-enter 420ms ease-out both;
+}
+
+/* 카드가 순서대로 살짝 늦게 나타나는 아주 약한 stagger. style={{ animationDelay }}과 함께 쓴다. */
+.stagger-enter {
+  animation: page-enter 420ms ease-out both;
+}
+
+/* 제목 주변 반짝임 장식, 캐릭터가 아주 미세하게 둥둥 떠다니는 정도의 움직임. */
+@keyframes float-gentle {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--float-rotate, 0deg));
+  }
+  50% {
+    transform: translateY(-6px) rotate(var(--float-rotate, 0deg));
+  }
+}
+.float-gentle {
+  animation: float-gentle 4s ease-in-out infinite;
+}
+
+/* 레오 캐릭터 전용 — 아주 미세하게(2~4px) 떠 있는 느낌만. */
+@keyframes leo-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+.leo-float {
+  animation: leo-float 3.2s ease-in-out infinite;
+}
+
+/* 숫자 결과가 카운트업 되는 동안 쓰는 살짝 튀는 등장. */
+@keyframes number-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.number-pop {
+  animation: number-pop 380ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* 문장 속 강조 단어 — 폰트를 바꾸지 않고 색·굵기·아주 약간의 크기만 다르게 해서
+   포인트를 준다 (형광색·밑줄·과한 크기 차이 금지). */
+.text-accent {
+  color: var(--pink-strong);
+  font-weight: 700;
+  font-size: 1.03em;
+}
+
+/* 메인화면(Hero) 전용 — 모바일 주소창을 뺀 실제 보이는 높이를 채운다.
+   구형 브라우저는 100vh로 남고, svh/dvh를 지원하면 더 정확한 값으로 덮어써진다. */
+.hero-viewport {
+  min-height: 100vh;
+  min-height: 100svh;
+  min-height: 100dvh;
+}
+
+/* 1년 근속(Stay Point) 선물상자 카드 전용 — 뚜껑이 열리고, 반짝이가 사방으로 튀고,
+   편지 카드가 상자 안에서 위로 올라오는 세 가지 움직임. */
+@keyframes gift-lid-open {
+  from {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(-2.75rem) rotate(-18deg);
+    opacity: 0;
+  }
+}
+.gift-lid-open {
+  animation: gift-lid-open 480ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes gift-confetti-piece {
+  0% {
+    transform: translate(0, 0) rotate(0deg) scale(0.6);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--confetti-x, 0), var(--confetti-y, -3rem)) rotate(var(--confetti-rotate, 90deg)) scale(1);
+    opacity: 0;
+  }
+}
+.gift-confetti-piece {
+  animation: gift-confetti-piece 900ms ease-out both;
+}
+
+@keyframes gift-letter-rise {
+  from {
+    transform: translateY(2.25rem) scale(0.94);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+.gift-letter-rise {
+  animation: gift-letter-rise 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-enter,
+  .stagger-enter,
+  .float-gentle,
+  .leo-float,
+  .number-pop,
+  .gift-lid-open,
+  .gift-confetti-piece,
+  .gift-letter-rise {
+    animation: none !important;
+  }
+}
