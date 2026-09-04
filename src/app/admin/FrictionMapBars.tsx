@@ -1,11 +1,19 @@
+"use client";
+
+import { useState } from "react";
+import type { ResponseBreakdown } from "@/lib/stats";
+import { BreakdownPanel } from "./BreakdownPanel";
+
 // 마찰 지도를 "응답 많은 순 가로 막대 목록"으로 보여준다. 정렬·비율 계산은 admin/page.tsx가
 // 넘겨주는 computeFrictionMapStats() 결과(이미 응답 수 내림차순)를 그대로 쓰고, 이 컴포넌트는
 // 막대 길이·색·레이아웃 같은 표현만 담당한다 — 범례·격자선·차트 테두리 없이 "항목명 + 막대 +
-// n명 · 비율%" 세 가지만으로 한눈에 읽히게 한다.
+// n명 · 비율%" 세 가지만으로 한눈에 읽히게 한다. 항목을 클릭하면 그 응답이 어느 부서·어느
+// 입사월에서 나왔는지 펼쳐 보여준다.
 
-type FrictionEntry = { choice: string; count: number };
+type FrictionEntry = { choice: string; count: number; breakdown: ResponseBreakdown };
 
 export function FrictionMapBars({ items }: { items: FrictionEntry[] }) {
+  const [openChoice, setOpenChoice] = useState<string | null>(null);
   const total = items.reduce((sum, i) => sum + i.count, 0);
 
   if (items.length === 0) {
@@ -21,30 +29,41 @@ export function FrictionMapBars({ items }: { items: FrictionEntry[] }) {
       {items.map((item) => {
         const pct = total > 0 ? Math.round((item.count / total) * 100) : 0;
         const isTop = item.count >= topThreshold;
+        const open = openChoice === item.choice;
         return (
-          <li key={item.choice} className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
-            <span className="text-sm text-slate-600 sm:min-w-[9.5rem] sm:max-w-[11rem] sm:shrink-0">
-              {item.choice}
-            </span>
-            <div className="flex flex-1 items-center gap-2">
-              <div className="h-3.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${Math.max(pct, 3)}%`,
-                    background: isTop
-                      ? "linear-gradient(180deg, #ff9fb8 0%, var(--pink, #ff8fab) 100%)"
-                      : "linear-gradient(180deg, #d8d4d1 0%, #c7c2be 100%)",
-                    boxShadow: isTop
-                      ? "0 1px 3px rgba(255,111,146,0.35)"
-                      : "0 1px 2px rgba(0,0,0,0.08)",
-                  }}
-                />
-              </div>
-              <span className="shrink-0 text-xs text-slate-500 sm:text-sm">
-                {item.count}명 · {pct}%
+          <li key={item.choice} className="flex flex-col gap-1">
+            <button
+              type="button"
+              onClick={() => setOpenChoice((prev) => (prev === item.choice ? null : item.choice))}
+              className="flex flex-col gap-1 text-left sm:flex-row sm:items-center sm:gap-3"
+            >
+              <span className="text-sm text-slate-600 sm:min-w-[9.5rem] sm:max-w-[11rem] sm:shrink-0">
+                {item.choice}
               </span>
-            </div>
+              <div className="flex flex-1 items-center gap-2">
+                <div className="h-3.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full"
+                    style={{
+                      width: `${Math.max(pct, 3)}%`,
+                      background: isTop
+                        ? "linear-gradient(180deg, #ff9fb8 0%, var(--pink, #ff8fab) 100%)"
+                        : "linear-gradient(180deg, #d8d4d1 0%, #c7c2be 100%)",
+                      boxShadow: isTop
+                        ? "0 1px 3px rgba(255,111,146,0.35)"
+                        : "0 1px 2px rgba(0,0,0,0.08)",
+                    }}
+                  />
+                </div>
+                <span className="shrink-0 text-xs text-slate-500 sm:text-sm">
+                  {item.count}명 · {pct}%
+                </span>
+                <span className="shrink-0 text-xs text-slate-400" aria-hidden>
+                  {open ? "▲" : "▼"}
+                </span>
+              </div>
+            </button>
+            {open && <BreakdownPanel breakdown={item.breakdown} />}
           </li>
         );
       })}

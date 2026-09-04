@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent } from "
 import { useRouter } from "next/navigation";
 import * as XLSX from "xlsx";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { MILESTONE_LABELS } from "@/lib/cohorts";
+import { MILESTONE_LABELS, toCohortMonth } from "@/lib/cohorts";
 import { LeoCharacter, SoftCard, SoftButton } from "@/components/ui";
 import { DEPARTMENTS } from "@/lib/departments";
 import type { Milestone, Nurse } from "@/types/db";
@@ -525,19 +525,63 @@ export default function NursesPage() {
       return;
     }
 
-    const linkToken = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
-    const cohortMonth = new Date().toISOString().slice(0, 10);
-    const { data, error: insertError } = await supabase
-      .from("cohorts")
-      .insert({ cohort_month: cohortMonth, milestone, link_token: linkToken, status: "pending", is_manual: true })
-      .select("id")
-      .single();
-    if (insertError || !data) {
-      setSendingCohort(false);
-      setError("기수 생성에 실패했어요.");
-      return;
+    // 선택한 인원의 입사월이 전부 같으면(=진짜 같은 기수라면), 이미 그 입사월·개월수로 나가
+    // 있는 기수(자동이든 이전에 만든 수동이든)가 있는지 먼저 확인해 있으면 새 링크를 또
+    // 만들지 않고 그 기수에 사람만 합류시킨다 — "같은 입사월 기수는 링크 하나"라는 원칙을
+    // 지키기 위함이다. 입사월이 서로 다르면 묶을 기준이 없으므로 예전처럼 "직접 선택" 전용
+    // 기수를 새로 만든다.
+    const selectedNurses = Array.from(selectedIds)
+      .map((id) => nurses.find((n) => n.id === id))
+      .filter((n): n is Nurse => Boolean(n));
+    const hireMonths = new Set(selectedNurses.map((n) => toCohortMonth(n.hireDate)));
+    const sharedHireMonth = hireMonths.size === 1 ? Array.from(hireMonths)[0] : null;
+
+    let cohortId: string;
+    if (sharedHireMonth) {
+      const { data: existingCohort, error: existingErr } = await supabase
+        .from("cohorts")
+        .select("id")
+        .eq("cohort_month", sharedHireMonth)
+        .eq("milestone", milestone)
+        .maybeSingle();
+      if (existingErr) {
+        setSendingCohort(false);
+        setError("기존 기수 확인에 실패했어요.");
+        return;
+      }
+      if (existingCohort) {
+        cohortId = existingCohort.id;
+      } else {
+        const linkToken = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+        const { data, error: insertError } = await supabase
+          .from("cohorts")
+          .insert({ cohort_month: sharedHireMonth, milestone, link_token: linkToken, status: "pending", is_manual: true })
+          .select("id")
+          .single();
+        if (insertError || !data) {
+          setSendingCohort(false);
+          setError("기수 생성에 실패했어요.");
+          return;
+        }
+        cohortId = data.id;
+      }
+    } else {
+      const linkToken = crypto.randomUUID().replace(/-/g, "").slice(0, 16);
+      const cohortMonth = new Date().toISOString().slice(0, 10);
+      const { data, error: insertError } = await supabase
+        .from("cohorts")
+        .insert({ cohort_month: cohortMonth, milestone, link_token: linkToken, status: "pending", is_manual: true })
+        .select("id")
+        .single();
+      if (insertError || !data) {
+        setSendingCohort(false);
+        setError("기수 생성에 실패했어요.");
+        return;
+      }
+      cohortId = data.id;
     }
-    const memberRows = Array.from(selectedIds).map((nurseId) => ({ cohort_id: data.id, nurse_id: nurseId }));
+
+    const memberRows = Array.from(selectedIds).map((nurseId) => ({ cohort_id: cohortId, nurse_id: nurseId }));
     const { error: memberError } = await supabase.from("cohort_nurses").insert(memberRows);
     setSendingCohort(false);
     if (memberError) {

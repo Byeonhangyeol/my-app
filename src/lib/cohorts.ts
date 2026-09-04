@@ -25,7 +25,7 @@ export const MILESTONE_LABELS: Record<Milestone, string> = {
 };
 
 // 입사일을 그 달의 1일로 맞춰 기수(cohort_month)를 만든다.
-function toCohortMonth(hireDate: string): string {
+export function toCohortMonth(hireDate: string): string {
   const d = new Date(hireDate);
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1))
     .toISOString()
@@ -127,16 +127,19 @@ export async function ensureDueCohortLinks(): Promise<{ error: string | null }> 
   const due = computeDueCohorts(nurses, new Date(), coverage);
   if (due.length === 0) return { error: null };
 
-  // (cohort_month, milestone) 유니크 제약은 이제 자동 기수(is_manual=false)에만 걸린
-  // partial unique index다(수동 기수는 cohort_month가 "만든 날짜"라 의미가 없어서 제외함,
-  // 20260901000003 마이그레이션). PostgREST의 upsert(on_conflict=컬럼목록)는 WHERE 조건이
-  // 없는 일반 unique 제약만 잡을 수 있어서, partial index를 대상으로는 항상
+  // (cohort_month, milestone) 유니크 제약은 자동 기수(is_manual=false)에만 걸린 partial
+  // unique index다(20260901000003 마이그레이션). PostgREST의 upsert(on_conflict=컬럼목록)는
+  // WHERE 조건이 없는 일반 unique 제약만 잡을 수 있어서, partial index를 대상으로는 항상
   // "there is no unique or exclusion constraint matching..." 에러가 났다 — 그래서 upsert
-  // 대신 이미 있는 자동 기수를 먼저 조회해, 없는 것만 insert한다.
+  // 대신 이미 있는 기수를 먼저 조회해, 없는 것만 insert한다.
+  //
+  // is_manual 여부를 가리지 않고 조회한다 — 명단 관리에서 "직접 선택"으로 만든 기수가
+  // 대상자 전원의 실제 입사월과 같은 cohort_month를 갖고 있을 수 있고(같은 입사월·개월수
+  // 기수는 링크를 하나만 쓴다는 원칙), 그 경우 여기서 새 자동 기수를 또 만들지 않고
+  // populateCohortMembership에서 그 수동 기수에 나머지 대상자를 합류시킨다.
   const { data: existingRows, error: existingError } = await supabase
     .from("cohorts")
     .select("cohort_month, milestone")
-    .eq("is_manual", false)
     .in("cohort_month", Array.from(new Set(due.map((d) => d.cohortMonth))));
   if (existingError) return { error: "기수 정보를 불러오지 못했어요." };
 

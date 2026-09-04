@@ -5,7 +5,7 @@ import Link from "next/link";
 import * as XLSX from "xlsx";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { ensureDueCohortLinks, MILESTONE_LABELS } from "@/lib/cohorts";
-import { computeFlightRiskStats, computeFrictionMapStats, countParticipants, displayName } from "@/lib/stats";
+import { computeBreakdown, computeFlightRiskStats, computeFrictionMapStats, countParticipants, displayName } from "@/lib/stats";
 import { FlightRiskBar } from "./FlightRiskBar";
 import { FrictionMapBars } from "./FrictionMapBars";
 import { LeoCharacter, SoftCard, SoftInput } from "@/components/ui";
@@ -245,6 +245,28 @@ export default function AdminDashboardPage() {
 
   const flightRisk = computeFlightRiskStats(filteredResponses);
   const frictionMap = computeFrictionMapStats(filteredResponses);
+  // Flight Risk·마찰 지도의 퍼센트를 클릭했을 때 "어느 부서·어느 입사월에서 나온
+  // 응답인지" 펼쳐 보여주기 위한 세부 집계. 입사월은 응답이 속한 기수의 cohortMonth로 구한다.
+  const hireMonthOf = (cohortId: string) => cohortsById.get(cohortId)?.cohortMonth.slice(0, 7);
+  const flightRiskAnswers = filteredResponses.filter((r) => r.step === "flight_risk");
+  const flightRiskBreakdown = {
+    yes: computeBreakdown(
+      flightRiskAnswers.filter((r) => r.answerText === "예"),
+      hireMonthOf,
+    ),
+    no: computeBreakdown(
+      flightRiskAnswers.filter((r) => r.answerText === "아니오"),
+      hireMonthOf,
+    ),
+  };
+  const frictionMapAnswers = filteredResponses.filter((r) => r.step === "friction_map" && r.answerText);
+  const frictionMapWithBreakdown = frictionMap.map((item) => ({
+    ...item,
+    breakdown: computeBreakdown(
+      frictionMapAnswers.filter((r) => r.answerText!.split(" — ")[0] === item.choice),
+      hireMonthOf,
+    ),
+  }));
   const participants = countParticipants(filteredResponses);
   const stayPointCount = filteredResponses.filter((r) => r.step === "stay_point").length;
   const unacknowledged = alerts.filter((a) => !a.acknowledged);
@@ -582,11 +604,17 @@ export default function AdminDashboardPage() {
           <div className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
             <SoftCard level={2}>
               <p className="text-slate-500">Flight Risk</p>
-              <FlightRiskBar yes={flightRisk.yes} no={flightRisk.no} total={flightRisk.total} />
+              <FlightRiskBar
+                yes={flightRisk.yes}
+                no={flightRisk.no}
+                total={flightRisk.total}
+                yesBreakdown={flightRiskBreakdown.yes}
+                noBreakdown={flightRiskBreakdown.no}
+              />
             </SoftCard>
             <SoftCard level={2}>
               <p className="text-slate-500">마찰 지도</p>
-              <FrictionMapBars items={frictionMap} />
+              <FrictionMapBars items={frictionMapWithBreakdown} />
             </SoftCard>
           </div>
         )}
